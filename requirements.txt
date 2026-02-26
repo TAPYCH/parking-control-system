@@ -1,0 +1,8 @@
+config
+fastapi
+uvicorn
+sqlalchemy
+requests
+jinja2
+pydantic
+python-multipart

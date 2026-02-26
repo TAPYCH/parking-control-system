@@ -1,0 +1,20 @@
+{
+    "system": {
+        "max_places": 150,
+        "strict_whitelist_only": false,
+        "auto_ban_overstay": false,
+        "auto_ban_tailgate": false,
+        "white_limit_min": 120,
+        "guest_limit_min": 15,
+        "antispam_sec": 10
+    },
+    "gates": {
+        "gate_1": {
+            "relay_type": "rodos",
+            "relay_ip": "192.168.0.100",
+            "ch_barrier": 6,
+            "ch_red": 7,
+            "ch_green": 8
+        }
+    }
+}

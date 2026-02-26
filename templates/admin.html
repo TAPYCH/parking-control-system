@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Enterprise Parking OS</title>
+    <style>
+        :root { 
+            --bg: #0f172a; --panel: #1e293b; --accent: #3b82f6; 
+            --text: #f8fafc; --muted: #94a3b8;
+            --success: #10b981; --error: #ef4444; 
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; }
+        
+        /* Layout */
+        .sidebar { width: 260px; background: var(--panel); padding: 20px; display: flex; flex-direction: column; border-right: 1px solid #334155;}
+        .logo { font-size: 22px; font-weight: 900; margin-bottom: 30px; }
+        .logo span { color: var(--accent); }
+        .menu-btn { background: none; color: var(--muted); border: none; text-align: left; padding: 15px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; margin-bottom: 5px; }
+        .menu-btn:hover, .menu-btn.active { background: #334155; color: #fff; border-left: 4px solid var(--accent); }
+        
+        .content { flex: 1; padding: 30px 40px; overflow-y: auto; }
+        .tab { display: none; animation: fadeIn 0.3s; }
+        .tab.active { display: block; }
+        @keyframes fadeIn { from {opacity: 0; transform: translateY(10px);} to {opacity: 1; transform: translateY(0);} }
+
+        /* UI Elements */
+        .card { background: var(--panel); border: 1px solid #334155; border-radius: 12px; padding: 25px; margin-bottom: 20px; }
+        h2 { margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 10px; color: #fff; }
+        h3 { margin-top: 0; color: var(--accent); }
+        
+        /* Settings Grid & Inputs */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #cbd5e1; font-size: 14px;}
+        input[type="text"], input[type="number"], select { width: 100%; padding: 10px 15px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 15px; outline: none; }
+        .hint { font-size: 12px; color: var(--muted); margin-top: 5px; display: block; }
+        
+        .btn { background: var(--accent); color: #fff; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px; transition: 0.2s; }
+        .btn:hover { background: #2563eb; }
+
+        /* Toggle Switch (Галки) */
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #334155; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #475569; transition: .4s; border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--success); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        /* Tables & Terminal */
+        .terminal { background: #020617; padding: 15px; border-radius: 12px; height: 350px; overflow-y: auto; font-family: monospace; font-size: 14px; border: 1px solid #334155;}
+        .log-INFO { color: #60a5fa; } .log-SUCCESS { color: #34d399; } .log-WARN { color: #f59e0b; } .log-ERROR { color: #f87171; font-weight: bold;}
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+        th { background: #0f172a; color: var(--muted); }
+        .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        .b-white { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .b-black { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .b-temp { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+
+        /* Accordion */
+        .acc-hdr { padding: 15px; background: #0f172a; cursor: pointer; border: 1px solid #334155; border-radius: 8px; font-weight: bold; margin-bottom: 5px; display: flex; justify-content: space-between;}
+        .acc-body { display: none; padding: 15px; border: 1px solid #334155; border-top: none; border-radius: 0 0 8px 8px; margin-top: -5px; margin-bottom: 15px; background: #1e293b;}
+        .code { background: #000; padding: 10px; font-family: monospace; color: #a78bfa; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="logo">PARKING <span>OS</span></div>
+        <button class="menu-btn active" onclick="switchTab('dashboard')">📊 Мониторинг</button>
+        <button class="menu-btn" onclick="switchTab('db'); loadLists();">🗂️ База номеров</button>
+        <button class="menu-btn" onclick="switchTab('settings'); loadConfig();">⚙️ Логика и Железо</button>
+        <button class="menu-btn" onclick="switchTab('docs')">📖 Справочник оборудования</button>
+    </div>
+
+    <div class="content">
+        <!-- ================= ДАШБОРД ================= -->
+        <div id="dashboard" class="tab active">
+            <h2>Текущий статус</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <div style="color: var(--muted)">Занято мест</div>
+                    <div style="font-size: 40px; font-weight: bold; color: var(--accent);"><span id="occ-val">0</span> / <span id="max-val">0</span></div>
+                </div>
+                <div class="card">
+                    <div style="color: var(--muted)">Uptime (Время работы)</div>
+                    <div id="uptime-val" style="font-size: 40px; font-weight: bold;">00:00:00</div>
+                </div>
+            </div>
+            <h3>Журнал событий</h3>
+            <div id="terminal" class="terminal"></div>
+        </div>
+
+        <!-- ================= БАЗА НОМЕРОВ ================= -->
+        <div id="db" class="tab">
+            <h2>Управление списками доступа</h2>
+            <div class="card grid-2">
+                <div>
+                    <h3>Импорт базы (Excel / CSV)</h3>
+                    <p style="color: var(--muted); font-size: 14px;">Создайте таблицу в Excel, сохраните как CSV (разделитель точка с запятой) и загрузите. <br><br>
+                    <b>Формат столбцов:</b><br>1: Номер авто (О000ОО77)<br>2: Категория (white, black, temp)<br>3: Примечание (Иванов И.И.)</p>
+                    <input type="file" id="csvFile" accept=".csv" style="margin-bottom: 10px;">
+                    <button class="btn" onclick="uploadCSV()">📥 Загрузить файл</button>
+                </div>
+                <div style="background: #0f172a; padding: 15px; border-radius: 8px;">
+                    <b style="color:var(--accent)">Пример таблицы Excel:</b>
+                    <table style="font-size: 13px; margin-top: 10px;">
+                        <tr><th>Номер</th><th>Категория</th><th>Примечание</th></tr>
+                        <tr><td>А111АА77</td><td>white</td><td>Директор</td></tr>
+                        <tr><td>В222ВВ99</td><td>black</td><td>Должник</td></tr>
+                        <tr><td>Е333ЕЕ11</td><td>temp</td><td>Гость</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Зарегистрированные автомобили</h3>
+                <table id="usersTable">
+                    <tr><th>ID</th><th>Номер ТС</th><th>Категория</th><th>Примечание</th></tr>
+                    <!-- Заполняется JS -->
+                </table>
+            </div>
+        </div>
+
+        <!-- ================= НАСТРОЙКИ ================= -->
+        <div id="settings" class="tab">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>Конфигурация комплекса</h2>
+                <button class="btn" onclick="saveConfig()">💾 Сохранить изменения</button>
+            </div>
+            
+            <div class="grid-2">
+                <!-- ПРАВИЛА И ЛОГИКА -->
+                <div class="card">
+                    <h3>Логика и Режимы</h3>
+                    
+                    <div class="toggle-row">
+                        <div>
+                            <b>Только "Белый список"</b>
+                            <div class="hint">Запретить въезд по звонку и временным пропускам. Только резиденты.</div>
+                        </div>
+                        <label class="switch"><input type="checkbox" id="c_strict"><span class="slider"></span></label>
+                    </div>
+
+                    <div class="toggle-row">
+                        <div>
+                            <b>Авто-БАН: Просрочка времени</b>
+                            <div class="hint">Автоматически переносить в "Черный список" тех, кто стоял дольше лимита.</div>
+                        </div>
+                        <label class="switch"><input type="checkbox" id="c_ban_time"><span class="slider"></span></label>
+                    </div>
+
+                    <div class="toggle-row" style="margin-bottom: 20px;">
+                        <div>
+                            <b style="color: var(--error)">Анти-Паровозик (Защита)</b>
+                            <div class="hint">Блокировать шлагбаум и банить авто, если 2 машины проехали друг за другом.</div>
+                        </div>
+                        <label class="switch"><input type="checkbox" id="c_ban_tail"><span class="slider"></span></label>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="form-group"><label>Мест на парковке</label><input type="number" id="c_max"></div>
+                        <div class="form-group"><label>Лимит "Своих" (мин)</label><input type="number" id="c_w_lim"></div>
+                        <div class="form-group"><label>Лимит "Гостей" (мин)</label><input type="number" id="c_g_lim"></div>
+                        <div class="form-group"><label>Анти-спам камеры (сек)</label><input type="number" id="c_spam"></div>
+                    </div>
+                </div>
+
+                <!-- ОБОРУДОВАНИЕ -->
+                <div class="card">
+                    <h3>Оборудование (КПП №1)</h3>
+                    <div class="form-group">
+                        <label>Производитель Реле</label>
+                        <select id="c_r_type">
+                            <option value="dingtian">Dingtian (DT-R008 / IoT)</option>
+                            <option value="rodos">Rodos (ККМ / Laurent)</option>
+                            <option value="kernel">Kernel (Логика / Laurent-2)</option>
+                            <option value="shelly">Shelly (IoT Relay)</option>
+                            <option value="sonoff">Sonoff (DIY Mode)</option>
+                        </select>
+                        <div class="hint">Универсальный драйвер автоматически подстроит команды под производителя.</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>IP-адрес контроллера</label>
+                        <input type="text" id="c_r_ip" placeholder="192.168.0.100">
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <div class="form-group"><label>Канал: Шлагбаум</label><input type="number" id="c_ch_bar"></div>
+                        <div class="form-group"><label>Канал: Красный</label><input type="number" id="c_ch_red"></div>
+                        <div class="form-group"><label>Канал: Зеленый</label><input type="number" id="c_ch_grn"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= СПРАВОЧНИК ================= -->
+        <div id="docs" class="tab">
+            <h2>Справочник интегратора</h2>
+            
+            <div class="acc-hdr" onclick="tgl(this)">🔌 Настройка реле разных брендов</div>
+            <div class="acc-body">
+                <b>Dingtian:</b> Использует индексы от 0. Каналы в программе пишем реальные (1-8), ядро само переведет. URL для датчиков в Dingtian:<br>
+                <div class="code">/api/v1/sensor/trigger?gate_id=gate_1&sensor_id=1</div><br>
+                <b>Rodos (ККМ):</b> Управляется через pwr.cgi. Датчики настраиваются во вкладке M2M.<br>
+                <b>Shelly:</b> Управляется по HTTP. Идеально для небольших объектов.
+            </div>
+
+            <div class="acc-hdr" onclick="tgl(this)">📹 Настройка камер "Линия"</div>
+            <div class="acc-body">
+                В ПО Линия создайте реакцию на "Распознавание номера", выберите метод GET и вставьте URL:<br>
+                <div class="code">http://АДРЕС:8000/api/v1/camera/event?plate=%PLATE_NUMBER%&direction=in&gate_id=gate_1</div>
+            </div>
+            
+            <div class="acc-hdr" onclick="tgl(this)">📞 Интеграция Телефонии (GSM)</div>
+            <div class="acc-body">
+                АТС (Asterisk / FreePBX) должна дергать этот URL при входящем звонке на номер ворот:<br>
+                <div class="code">http://АДРЕС:8000/api/v1/gsm/auth?phone=${CALLERID(num)}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="toast" class="toast" style="position: fixed; bottom: 20px; right: 20px; padding: 15px; background: #10b981; color: #fff; border-radius: 8px; display: none;">Сохранено</div>
+
+    <script>
+        // Табы
+        function switchTab(id) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // Аккордеон
+        function tgl(el) {
+            const body = el.nextElementSibling;
+            body.style.display = body.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function msg(text, err=false) {
+            const t = document.getElementById('toast');
+            t.innerText = text; t.style.background = err ? '#ef4444' : '#10b981';
+            t.style.display = 'block'; setTimeout(() => t.style.display='none', 3000);
+        }
+
+        // Загрузка настроек
+        async function loadConfig() {
+            const res = await fetch('/api/config'); const c = await res.json();
+            document.getElementById('c_strict').checked = c.system.strict_whitelist_only;
+            document.getElementById('c_ban_time').checked = c.system.auto_ban_overstay;
+            document.getElementById('c_ban_tail').checked = c.system.auto_ban_tailgate;
+            document.getElementById('c_max').value = c.system.max_places;
+            document.getElementById('c_w_lim').value = c.system.white_limit_min;
+            document.getElementById('c_g_lim').value = c.system.guest_limit_min;
+            document.getElementById('c_spam').value = c.system.antispam_sec;
+            
+            document.getElementById('c_r_type').value = c.gates.gate_1.relay_type;
+            document.getElementById('c_r_ip').value = c.gates.gate_1.relay_ip;
+            document.getElementById('c_ch_bar').value = c.gates.gate_1.ch_barrier;
+            document.getElementById('c_ch_red').value = c.gates.gate_1.ch_red;
+            document.getElementById('c_ch_grn').value = c.gates.gate_1.ch_green;
+        }
+
+        // Сохранение настроек
+        async function saveConfig() {
+            const cfg = {
+                system: {
+                    max_places: parseInt(document.getElementById('c_max').value),
+                    strict_whitelist_only: document.getElementById('c_strict').checked,
+                    auto_ban_overstay: document.getElementById('c_ban_time').checked,
+                    auto_ban_tailgate: document.getElementById('c_ban_tail').checked,
+                    white_limit_min: parseInt(document.getElementById('c_w_lim').value),
+                    guest_limit_min: parseInt(document.getElementById('c_g_lim').value),
+                    antispam_sec: parseInt(document.getElementById('c_spam').value)
+                },
+                gates: {
+                    gate_1: {
+                        relay_type: document.getElementById('c_r_type').value,
+                        relay_ip: document.getElementById('c_r_ip').value,
+                        ch_barrier: parseInt(document.getElementById('c_ch_bar').value),
+                        ch_red: parseInt(document.getElementById('c_ch_red').value),
+                        ch_green: parseInt(document.getElementById('c_ch_grn').value)
+                    }
+                }
+            };
+            await fetch('/admin/save_config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
+            msg('Настройки применены!');
+        }
+
+        // Загрузка списков базы
+        async function loadLists() {
+            const res = await fetch('/api/lists/get'); const users = await res.json();
+            const tb = document.getElementById('usersTable');
+            tb.innerHTML = '<tr><th>ID</th><th>Номер ТС</th><th>Категория</th><th>Примечание</th></tr>';
+            users.forEach(u => {
+                let badge = `<span class="badge b-${u.category}">${u.category}</span>`;
+                tb.innerHTML += `<tr><td>${u.id}</td><td><b>${u.plate}</b></td><td>${badge}</td><td>${u.note || ''}</td></tr>`;
+            });
+        }
+
+        // Загрузка CSV
+        async function uploadCSV() {
+            const file = document.getElementById('csvFile').files[0];
+            if (!file) return msg('Выберите файл!', true);
+            const fd = new FormData(); fd.append("file", file);
+            const res = await fetch('/api/lists/upload', { method: 'POST', body: fd });
+            if (res.ok) { msg('База обновлена!'); loadLists(); }
+        }
+
+        // Обновление дашборда
+        setInterval(async () => {
+            if(!document.getElementById('dashboard').classList.contains('active')) return;
+            const res = await fetch('/admin/sys_data'); const data = await res.json();
+            document.getElementById('occ-val').innerText = data.occupied;
+            document.getElementById('max-val').innerText = data.max;
+            document.getElementById('uptime-val').innerText = data.uptime;
+            document.getElementById('terminal').innerHTML = data.logs.map(l => `<div class="log-${l.level}"><span style="color:#475569;">${l.time}</span> ${l.msg}</div>`).join('');
+        }, 1000);
+    </script>
+</body>
+</html>
